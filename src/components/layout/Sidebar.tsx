@@ -44,10 +44,12 @@ export function Sidebar({ className }: SidebarProps) {
       )}
     >
       <div className="border-b border-sidebar-border px-4 py-5">
-        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+        <p className="text-xs font-semibold uppercase tracking-wider text-primary">
           CHARIS
         </p>
-        <h1 className="text-lg font-semibold">VDMS</h1>
+        <h1 className="text-lg font-semibold text-sidebar-foreground">
+          Volunteer &amp; Donor Management
+        </h1>
         {role && (
           <p className="mt-1 text-xs capitalize text-muted-foreground">
             {role.replace('_', ' ')}
