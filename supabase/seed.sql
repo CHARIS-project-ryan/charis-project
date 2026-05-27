@@ -259,28 +259,28 @@ WHERE NOT EXISTS (
 -- Volunteer assignments
 INSERT INTO volunteer_assignments (volunteer_id, opportunity_id, organisation_id, status, hours_served)
 SELECT vol.id, opp.id, opp.organisation_id, v.status::assignment_status, v.hours
-FROM volunteers vol
-JOIN users u ON vol.user_id = u.id
-JOIN volunteer_opportunities opp ON opp.slug = v.opp_slug
-JOIN (VALUES
+FROM (VALUES
   ('siti.lee@email.com', 'food-packing', 'confirmed', NULL),
   ('siti.lee@email.com', 'home-visits', 'completed', 4.0),
   ('raj.kumar@email.com', 'legal-clinic', 'confirmed', NULL),
   ('raj.kumar@email.com', 'translation', 'pending', NULL),
   ('mei.tan@email.com', 'event-setup', 'completed', 6.0),
   ('mei.tan@email.com', 'children-programme', 'pending', NULL)
-) AS v(vol_email, opp_slug, status, hours) ON u.email = v.vol_email
+) AS v(vol_email, opp_slug, status, hours)
+JOIN users u ON u.email = v.vol_email
+JOIN volunteers vol ON vol.user_id = u.id
+JOIN volunteer_opportunities opp ON opp.slug = v.opp_slug
 ON CONFLICT (volunteer_id, opportunity_id) DO NOTHING;
 
 -- Sample audit logs
 INSERT INTO audit_logs (user_id, action, table_name, record_id, organisation_id, timestamp)
 SELECT u.id, v.action::audit_action, v.table_name, NULL, o.id, v.ts::timestamptz
-FROM users u
-JOIN organisations o ON o.slug = v.org_slug
-JOIN (VALUES
+FROM (VALUES
   ('developer@charis-singapore.org', 'gebirah', 'create', 'organisations', '2026-05-20 09:00:00'),
   ('sarah.chua@gebirah.sg', 'gebirah', 'create', 'campaigns', '2026-05-21 14:30:00'),
   ('john.lim@jrs.net.sg', 'jrs-singapore', 'update', 'volunteer_opportunities', '2026-05-22 11:00:00'),
   ('maria.fernandez@focolare.org', 'focolare', 'create', 'donations', '2026-05-23 16:45:00'),
   ('developer@charis-singapore.org', 'gebirah', 'export', 'donations', '2026-05-24 10:00:00')
-) AS v(user_email, org_slug, action, table_name, ts) ON u.email = v.user_email;
+) AS v(user_email, org_slug, action, table_name, ts)
+JOIN users u ON u.email = v.user_email
+JOIN organisations o ON o.slug = v.org_slug;
