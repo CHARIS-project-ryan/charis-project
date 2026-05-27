@@ -1,16 +1,26 @@
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import {
   Building2,
   ClipboardList,
   Heart,
   HandHeart,
   LayoutDashboard,
+  LogOut,
   ScrollText,
   Users,
   Wallet,
 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { useAuth } from '@/hooks/useAuth'
+import { formatName } from '@/lib/format'
 import { cn } from '@/lib/utils'
+
+function formatRoleLabel(role: string) {
+  return role
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}
 
 const allNavItems = [
   { to: '/dashboard', label: 'Home', icon: LayoutDashboard, end: true, superOnly: false, adminOnly: false },
@@ -28,7 +38,13 @@ interface SidebarProps {
 }
 
 export function Sidebar({ className }: SidebarProps) {
-  const { role, isSuperAdmin, isOrgAdmin } = useAuth()
+  const navigate = useNavigate()
+  const { user, role, isSuperAdmin, isOrgAdmin, signOut } = useAuth()
+
+  async function handleSignOut() {
+    await signOut()
+    navigate({ to: '/login' })
+  }
 
   const navItems = allNavItems.filter((item) => {
     if (isSuperAdmin) return true
@@ -47,12 +63,14 @@ export function Sidebar({ className }: SidebarProps) {
         <p className="text-xs font-semibold uppercase tracking-wider text-primary">
           CHARIS
         </p>
-        <h1 className="text-lg font-semibold text-sidebar-foreground">
-          Volunteer &amp; Donor Management
-        </h1>
+        {user && (
+          <p className="mt-2 text-sm font-semibold text-sidebar-foreground">
+            {formatName(user)}
+          </p>
+        )}
         {role && (
-          <p className="mt-1 text-xs capitalize text-muted-foreground">
-            {role.replace('_', ' ')}
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {formatRoleLabel(role)}
           </p>
         )}
       </div>
@@ -73,6 +91,18 @@ export function Sidebar({ className }: SidebarProps) {
           </Link>
         ))}
       </nav>
+      <div className="border-t border-sidebar-border p-3">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="w-full gap-2"
+          onClick={handleSignOut}
+        >
+          <LogOut className="size-4" />
+          Sign out
+        </Button>
+      </div>
     </aside>
   )
 }

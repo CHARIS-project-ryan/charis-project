@@ -1,19 +1,17 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider } from '@tanstack/react-router'
 import { StrictMode, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Toaster } from '@/components/ui/sonner'
 import { router } from '@/router'
+import { debugLog } from '@/lib/debug'
+import { queryClient } from '@/lib/queryClient'
 import { subscribeToAuthChanges, useAuthStore } from '@/store/authStore'
 import './index.css'
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 60_000,
-      retry: 1,
-    },
-  },
+debugLog('app', 'boot', {
+  mode: import.meta.env.MODE,
+  supabaseUrl: import.meta.env.VITE_SUPABASE_URL ?? '(missing)',
 })
 
 function AppProviders() {

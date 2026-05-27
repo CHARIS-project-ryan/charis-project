@@ -1,5 +1,7 @@
+import { debugError, debugLog } from '@/lib/debug'
 import { supabase } from '@/lib/supabase'
 import type { Donation, Donor, PaginationParams } from '@/types/entities'
+import { donorOrganisationNamesByDonorId } from '@/lib/organisationNames'
 import { createAuditLog } from './audit'
 
 export interface DonationFilters extends PaginationParams {
@@ -30,6 +32,12 @@ export async function getDonations(filters: DonationFilters = {}) {
     query = query.eq('payment_status', filters.payment_status)
 
   const { data, error, count } = await query
+  debugLog('api/donations', 'getDonations', {
+    count: count ?? 0,
+    rows: data?.length ?? 0,
+    error: error?.message ?? null,
+    filters,
+  })
   if (error) throw error
   return { data: (data ?? []) as Donation[], count: count ?? 0 }
 }
@@ -37,7 +45,9 @@ export async function getDonations(filters: DonationFilters = {}) {
 export async function getDonation(id: string) {
   const { data, error } = await supabase
     .from('donations')
-    .select('*, campaigns(title), organisations(name)')
+    .select(
+      '*, campaigns(title), organisations(name), donors(users(first_name, last_name, email))',
+    )
     .eq('id', id)
     .single()
   if (error) throw error
@@ -89,7 +99,19 @@ export async function getDonors(filters: DonorFilters = {}) {
 
   const { data, error, count } = await query
   if (error) throw error
-  return { data: (data ?? []) as Donor[], count: count ?? 0 }
+
+  const donors = (data ?? []) as Donor[]
+  const orgByDonor = await donorOrganisationNamesByDonorId(
+    donors.map((d) => d.id),
+  )
+
+  return {
+    data: donors.map((d) => ({
+      ...d,
+      organisation_names: orgByDonor.get(d.id) ?? [],
+    })),
+    count: count ?? 0,
+  }
 }
 
 export async function getDonor(id: string) {
@@ -99,20 +121,36 @@ export async function getDonor(id: string) {
     .eq('id', id)
     .single()
   if (error) throw error
-  return data as Donor
+
+  const donor = data as Donor
+  const orgByDonor = await donorOrganisationNamesByDonorId([donor.id])
+  return {
+    ...donor,
+    organisation_names: orgByDonor.get(donor.id) ?? [],
+  }
 }
 
 export async function getDonorDonations(id: string) {
   const { data, error } = await supabase
     .from('donations')
-    .select('*, campaigns(title)')
+    .select('*, campaigns(title), organisations(id, name)')
     .eq('donor_id', id)
     .order('created_at', { ascending: false })
   if (error) throw error
   return (data ?? []) as Donation[]
 }
 
+function assertNoError(
+  label: string,
+  result: { error: { message: string } | null },
+) {
+  if (result.error) {
+    throw new Error(`${label}: ${result.error.message}`)
+  }
+}
+
 export async function getDashboardStats() {
+  debugLog('api/dashboard', 'getDashboardStats start')
   const startOfMonth = new Date()
   startOfMonth.setDate(1)
   startOfMonth.setHours(0, 0, 0, 0)
@@ -143,12 +181,19 @@ export async function getDashboardStats() {
       .eq('status', 'pending'),
   ])
 
+  assertNoError('organisations', orgs)
+  assertNoError('volunteers', volunteers)
+  assertNoError('donors', donors)
+  assertNoError('donations', donations)
+  assertNoError('opportunities', opportunities)
+  assertNoError('assignments', pending)
+
   const donationsThisMonth = (donations.data ?? []).reduce(
     (sum, d) => sum + Number(d.amount),
     0,
   )
 
-  return {
+  const result = {
     organisations: orgs.count ?? 0,
     volunteers: volunteers.count ?? 0,
     donors: donors.count ?? 0,
@@ -156,9 +201,15 @@ export async function getDashboardStats() {
     openOpportunities: opportunities.count ?? 0,
     pendingApplications: pending.count ?? 0,
   }
+  debugLog('api/dashboard', 'getDashboardStats ok', {
+    ...result,
+    donationsRowsThisMonth: donations.data?.length ?? 0,
+  })
+  return result
 }
 
 export async function getMonthlyDonations() {
+  debugLog('api/dashboard', 'getMonthlyDonations start')
   const { data, error } = await supabase
     .from('donations')
     .select('amount, donated_at')
@@ -167,7 +218,10 @@ export async function getMonthlyDonations() {
       'donated_at',
       new Date(new Date().setMonth(new Date().getMonth() - 11)).toISOString(),
     )
-  if (error) throw error
+  if (error) {
+    debugError('api/dashboard', 'getMonthlyDonations failed', error)
+    throw error
+  }
 
   const byMonth = new Map<string, number>()
   for (const row of data ?? []) {
@@ -176,9 +230,14 @@ export async function getMonthlyDonations() {
     byMonth.set(key, (byMonth.get(key) ?? 0) + Number(row.amount))
   }
 
-  return Array.from(byMonth.entries())
+  const chart = Array.from(byMonth.entries())
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([month, total]) => ({ month, total }))
+  debugLog('api/dashboard', 'getMonthlyDonations ok', {
+    rawRows: data?.length ?? 0,
+    months: chart.length,
+  })
+  return chart
 }
 
 export async function getTopCampaigns(limit = 5) {

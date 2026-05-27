@@ -2,6 +2,10 @@ export const queryKeys = {
   organisations: {
     all: ['organisations'] as const,
     detail: (id: string) => ['organisations', id] as const,
+    donors: (id: string) => ['organisations', id, 'donors'] as const,
+    volunteers: (id: string) => ['organisations', id, 'volunteers'] as const,
+    assignments: (id: string, status?: string) =>
+      ['organisations', id, 'assignments', status ?? 'all'] as const,
   },
   campaigns: {
     all: (filters?: object) => ['campaigns', filters ?? {}] as const,
@@ -35,8 +39,17 @@ export const queryKeys = {
     detail: (id: string) => ['users', id] as const,
   },
   dashboard: {
-    stats: ['dashboard', 'stats'] as const,
-    monthlyDonations: ['dashboard', 'monthly-donations'] as const,
-    topCampaigns: ['dashboard', 'top-campaigns'] as const,
+    scope: (userId: string | null, role: string | null) =>
+      ['dashboard', userId ?? 'anon', role ?? 'none'] as const,
+    stats: (userId: string | null, role: string | null) =>
+      ['dashboard', userId ?? 'anon', role ?? 'none', 'stats'] as const,
+    monthlyDonations: (userId: string | null, role: string | null) =>
+      ['dashboard', userId ?? 'anon', role ?? 'none', 'monthly-donations'] as const,
+    topCampaigns: (userId: string | null, role: string | null) =>
+      ['dashboard', userId ?? 'anon', role ?? 'none', 'top-campaigns'] as const,
+    orgBreakdown: (userId: string | null, role: string | null) =>
+      ['dashboard', userId ?? 'anon', role ?? 'none', 'org-breakdown'] as const,
+    donorBreakdown: (userId: string | null, role: string | null) =>
+      ['dashboard', userId ?? 'anon', role ?? 'none', 'donor-breakdown'] as const,
   },
 }

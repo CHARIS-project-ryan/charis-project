@@ -7,5 +7,6 @@ export {
   OpportunitiesPage,
   OpportunityDetailPage,
 } from './OpportunitiesPage'
+export { OrganisationDetailPage } from './OrganisationDetailPage'
 export { OrganisationsPage } from './OrganisationsPage'
 export { VolunteerDetailPage, VolunteersPage } from './VolunteersPage'

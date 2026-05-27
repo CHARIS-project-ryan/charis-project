@@ -17,6 +17,7 @@ import {
   DonorsPage,
   OpportunitiesPage,
   OpportunityDetailPage,
+  OrganisationDetailPage,
   OrganisationsPage,
   VolunteerDetailPage,
   VolunteersPage,
@@ -64,6 +65,15 @@ const organisationsRoute = createRoute({
   getParentRoute: () => dashboardRoute,
   path: 'organisations',
   component: OrganisationsPage,
+})
+
+const organisationDetailRoute = createRoute({
+  getParentRoute: () => dashboardRoute,
+  path: 'organisations/$id',
+  component: OrganisationDetailPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    tab: typeof search.tab === 'string' ? search.tab : 'overview',
+  }),
 })
 
 const campaignsRoute = createRoute({
@@ -133,6 +143,7 @@ const routeTree = rootRoute.addChildren([
   dashboardRoute.addChildren([
     dashboardIndexRoute,
     organisationsRoute,
+    organisationDetailRoute,
     campaignsRoute,
     campaignDetailRoute,
     opportunitiesRoute,

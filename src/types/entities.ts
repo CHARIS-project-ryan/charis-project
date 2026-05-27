@@ -85,6 +85,8 @@ export interface Volunteer {
   total_hours_served: number
   is_active: boolean
   users?: AppUser
+  /** Member orgs (from user_organisations), sorted by name */
+  organisation_names?: string[]
 }
 
 export interface Donor {
@@ -94,6 +96,8 @@ export interface Donor {
   donation_count: number
   is_active: boolean
   users?: AppUser
+  /** Orgs with at least one completed donation, sorted by name */
+  organisation_names?: string[]
 }
 
 export interface Donation {
@@ -148,4 +152,68 @@ export interface DashboardStats {
   donationsThisMonth: number
   openOpportunities: number
   pendingApplications: number
+}
+
+export interface OrganisationBreakdownRow {
+  organisationId: string
+  organisationName: string
+  slug: string
+  volunteers: number
+  donors: number
+  donationsThisMonth: number
+  totalDonations: number
+  campaigns: number
+  openOpportunities: number
+  pendingApplications: number
+}
+
+export interface DonorOrgSlice {
+  organisationId: string
+  organisationName: string
+  amount: number
+  count: number
+}
+
+export interface DonorBreakdownRow {
+  donorId: string
+  name: string
+  email: string
+  totalDonated: number
+  donationsThisMonth: number
+  donationCount: number
+  byOrganisation: DonorOrgSlice[]
+}
+
+export type DashboardDrillMetric =
+  | 'organisations'
+  | 'volunteers'
+  | 'donors'
+  | 'donations'
+  | 'opportunities'
+  | 'applications'
+
+export type OrganisationDetailTab =
+  | 'overview'
+  | 'campaigns'
+  | 'donations'
+  | 'donors'
+  | 'volunteers'
+  | 'opportunities'
+  | 'applications'
+
+export interface OrganisationDonorRow {
+  donorId: string
+  name: string
+  email: string
+  totalAtOrg: number
+  donationCount: number
+}
+
+export interface OrganisationVolunteerRow {
+  volunteerId: string
+  name: string
+  email: string
+  joinedAt: string
+  hoursAtOrg: number
+  assignmentCount: number
 }

@@ -22,7 +22,7 @@ export function AuditLogsPage() {
     <div>
       <PageHeader
         title="Audit Logs"
-        description="Read-only activity trail for compliance"
+        description="Who did what, and when — a read-only trail of creates, updates, exports, and sign-ins for your organisation (PDPA / accountability)."
       />
       <DataTable
         isLoading={isLoading}

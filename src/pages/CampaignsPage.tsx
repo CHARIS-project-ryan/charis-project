@@ -11,7 +11,12 @@ import {
   useCampaignDonations,
   useCampaigns,
 } from '@/hooks/useQueries'
-import { formatCurrency } from '@/lib/format'
+import {
+  donorUserFromDonation,
+  formatCurrency,
+  formatName,
+  relationName,
+} from '@/lib/format'
 
 export function CampaignsPage() {
   const [search, setSearch] = useState('')
@@ -54,7 +59,7 @@ export function CampaignsPage() {
           {
             key: 'org',
             header: 'Organisation',
-            cell: (r) => r.organisations?.name ?? '—',
+            cell: (r) => relationName(r.organisations) ?? '—',
           },
           {
             key: 'progress',
@@ -114,6 +119,14 @@ export function CampaignDetailPage() {
           data={donations ?? []}
           emptyMessage="No donations for this campaign yet."
           columns={[
+            {
+              key: 'donor',
+              header: 'Donor',
+              cell: (r) =>
+                r.is_anonymous
+                  ? 'Anonymous'
+                  : formatName(donorUserFromDonation(r)),
+            },
             {
               key: 'amount',
               header: 'Amount',

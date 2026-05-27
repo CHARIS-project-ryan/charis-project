@@ -8,7 +8,8 @@ import { SearchInput } from '@/components/ui/SearchInput'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useDonor, useDonorDonations, useDonors } from '@/hooks/useQueries'
-import { formatCurrency, formatName } from '@/lib/format'
+import { OrgNameList } from '@/components/ui/OrgNameList'
+import { formatCurrency, formatName, relationName } from '@/lib/format'
 
 export function DonorsPage() {
   const [search, setSearch] = useState('')
@@ -28,7 +29,7 @@ export function DonorsPage() {
     <div>
       <PageHeader
         title="Donors"
-        description="Donor directory"
+        description="Donor directory — organisations reflect completed gifts"
         actions={<SearchInput placeholder="Search donors…" onChange={setSearch} />}
       />
       <DataTable
@@ -88,6 +89,10 @@ export function DonorDetailPage() {
             <span className="text-muted-foreground">Donations: </span>
             {donor.donation_count}
           </p>
+          <p className="sm:col-span-2">
+            <span className="text-muted-foreground">Gives to: </span>
+            <OrgNameList names={donor.organisation_names} emptyLabel="None" />
+          </p>
         </CardContent>
       </Card>
       <div>
@@ -100,6 +105,30 @@ export function DonorDetailPage() {
               key: 'amount',
               header: 'Amount',
               cell: (r) => formatCurrency(r.amount, r.currency),
+            },
+            {
+              key: 'org',
+              header: 'Organisation',
+              cell: (r) => {
+                const rel = r.organisations as
+                  | { id: string; name: string }
+                  | { id: string; name: string }[]
+                  | null
+                const org = relationName(rel)
+                const orgId = Array.isArray(rel) ? rel[0]?.id : rel?.id
+                return org && orgId ? (
+                  <Link
+                    to="/dashboard/organisations/$id"
+                    params={{ id: orgId }}
+                    search={{ tab: 'overview' }}
+                    className="hover:underline"
+                  >
+                    {org}
+                  </Link>
+                ) : (
+                  '—'
+                )
+              },
             },
             {
               key: 'campaign',

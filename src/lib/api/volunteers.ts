@@ -5,6 +5,7 @@ import type {
   VolunteerAssignment,
   VolunteerOpportunity,
 } from '@/types/entities'
+import { volunteerOrganisationNamesByUserId } from '@/lib/organisationNames'
 import { createAuditLog } from './audit'
 
 export interface OpportunityFilters extends PaginationParams {
@@ -84,8 +85,27 @@ export async function updateAssignmentStatus(
 }
 
 export interface VolunteerFilters extends PaginationParams {
+  /** Volunteers with member membership at this org */
   organisation_id?: string
+  /** Volunteers with member membership at any of these orgs (org admin) */
+  organisation_ids?: string[]
   search?: string
+}
+
+async function userIdsForOrgMembership(
+  organisationIds: string[],
+): Promise<string[]> {
+  if (organisationIds.length === 0) return []
+
+  const { data, error } = await supabase
+    .from('user_organisations')
+    .select('user_id')
+    .in('organisation_id', organisationIds)
+    .eq('role_in_org', 'member')
+    .eq('is_active', true)
+
+  if (error) throw error
+  return [...new Set((data ?? []).map((r) => r.user_id))]
 }
 
 export async function getVolunteers(filters: VolunteerFilters = {}) {
@@ -93,6 +113,18 @@ export async function getVolunteers(filters: VolunteerFilters = {}) {
   const perPage = filters.per_page ?? 20
   const from = (page - 1) * perPage
   const to = from + perPage - 1
+
+  const orgIds = filters.organisation_id
+    ? [filters.organisation_id]
+    : (filters.organisation_ids ?? [])
+
+  let memberUserIds: string[] | null = null
+  if (orgIds.length > 0) {
+    memberUserIds = await userIdsForOrgMembership(orgIds)
+    if (memberUserIds.length === 0) {
+      return { data: [] as Volunteer[], count: 0 }
+    }
+  }
 
   let query = supabase
     .from('volunteers')
@@ -102,6 +134,10 @@ export async function getVolunteers(filters: VolunteerFilters = {}) {
     .order('total_hours_served', { ascending: false })
     .range(from, to)
 
+  if (memberUserIds) {
+    query = query.in('user_id', memberUserIds)
+  }
+
   if (filters.search) {
     query = query.or(
       `users.first_name.ilike.%${filters.search}%,users.last_name.ilike.%${filters.search}%`,
@@ -110,7 +146,19 @@ export async function getVolunteers(filters: VolunteerFilters = {}) {
 
   const { data, error, count } = await query
   if (error) throw error
-  return { data: (data ?? []) as Volunteer[], count: count ?? 0 }
+
+  const volunteers = (data ?? []) as Volunteer[]
+  const orgByUser = await volunteerOrganisationNamesByUserId(
+    volunteers.map((v) => v.user_id),
+  )
+
+  return {
+    data: volunteers.map((v) => ({
+      ...v,
+      organisation_names: orgByUser.get(v.user_id) ?? [],
+    })),
+    count: count ?? 0,
+  }
 }
 
 export async function getVolunteer(id: string) {
@@ -120,15 +168,32 @@ export async function getVolunteer(id: string) {
     .eq('id', id)
     .single()
   if (error) throw error
-  return data as Volunteer
+
+  const volunteer = data as Volunteer
+  const orgByUser = await volunteerOrganisationNamesByUserId([volunteer.user_id])
+  return {
+    ...volunteer,
+    organisation_names: orgByUser.get(volunteer.user_id) ?? [],
+  }
 }
 
-export async function getVolunteerAssignments(id: string) {
-  const { data, error } = await supabase
+export async function getVolunteerAssignments(
+  id: string,
+  options?: { organisation_ids?: string[] },
+) {
+  let query = supabase
     .from('volunteer_assignments')
-    .select('*, volunteer_opportunities(title, start_date)')
+    .select(
+      '*, volunteer_opportunities(title, start_date), organisations(name)',
+    )
     .eq('volunteer_id', id)
     .order('applied_at', { ascending: false })
+
+  if (options?.organisation_ids?.length) {
+    query = query.in('organisation_id', options.organisation_ids)
+  }
+
+  const { data, error } = await query
   if (error) throw error
   return data ?? []
 }

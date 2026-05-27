@@ -8,6 +8,7 @@ interface StatCardProps {
   icon: LucideIcon
   description?: string
   className?: string
+  onClick?: () => void
 }
 
 export function StatCard({
@@ -16,9 +17,29 @@ export function StatCard({
   icon: Icon,
   description,
   className,
+  onClick,
 }: StatCardProps) {
   return (
-    <Card className={cn('', className)}>
+    <Card
+      className={cn(
+        onClick &&
+          'cursor-pointer transition-colors hover:border-primary/40 hover:bg-muted/30',
+        className,
+      )}
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onClick()
+              }
+            }
+          : undefined
+      }
+    >
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">
           {title}

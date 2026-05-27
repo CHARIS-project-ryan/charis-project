@@ -37,6 +37,37 @@ AS $$
     AND is_active = true;
 $$;
 
+-- SECURITY DEFINER helpers avoid donations ↔ donors RLS recursion
+CREATE OR REPLACE FUNCTION get_my_donor_ids()
+RETURNS uuid[]
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT COALESCE(array_agg(id), '{}'::uuid[])
+  FROM donors
+  WHERE user_id = auth.uid();
+$$;
+
+CREATE OR REPLACE FUNCTION donor_has_donation_in_orgs(
+  p_donor_id uuid,
+  p_org_ids uuid[]
+)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM donations d
+    WHERE d.donor_id = p_donor_id
+      AND d.organisation_id = ANY (p_org_ids)
+  );
+$$;
+
 -- organisations
 CREATE POLICY organisations_super_admin_all ON organisations
   FOR ALL
@@ -75,6 +106,8 @@ CREATE POLICY users_org_admin_select ON users
     )
   );
 
+-- Applied in 005_users_org_admin_donor_select.sql (donor profiles for org admins)
+
 -- user_organisations
 CREATE POLICY user_organisations_super_admin_all ON user_organisations
   FOR ALL
@@ -103,7 +136,10 @@ CREATE POLICY campaigns_org_admin_all ON campaigns
 
 CREATE POLICY campaigns_public_read ON campaigns
   FOR SELECT
-  USING (is_active = true);
+  USING (
+    is_active = true
+    AND get_user_role() IN ('volunteer'::user_role, 'donor'::user_role)
+  );
 
 -- volunteer_opportunities
 CREATE POLICY opportunities_super_admin_all ON volunteer_opportunities
@@ -118,7 +154,10 @@ CREATE POLICY opportunities_org_admin_all ON volunteer_opportunities
 
 CREATE POLICY opportunities_volunteer_read ON volunteer_opportunities
   FOR SELECT
-  USING (is_active = true);
+  USING (
+    is_active = true
+    AND get_user_role() IN ('volunteer'::user_role, 'donor'::user_role)
+  );
 
 -- volunteer_assignments
 CREATE POLICY assignments_super_admin_all ON volunteer_assignments
@@ -153,20 +192,24 @@ CREATE POLICY volunteers_super_admin_all ON volunteers
 CREATE POLICY volunteers_org_admin_all ON volunteers
   FOR ALL
   USING (
-    EXISTS (
+    get_user_role() = 'org_admin'
+    AND EXISTS (
       SELECT 1
       FROM user_organisations uo
       WHERE uo.user_id = volunteers.user_id
         AND uo.organisation_id = ANY (get_user_org_ids())
+        AND uo.role_in_org = 'member'
         AND uo.is_active = true
     )
   )
   WITH CHECK (
-    EXISTS (
+    get_user_role() = 'org_admin'
+    AND EXISTS (
       SELECT 1
       FROM user_organisations uo
       WHERE uo.user_id = volunteers.user_id
         AND uo.organisation_id = ANY (get_user_org_ids())
+        AND uo.role_in_org = 'member'
         AND uo.is_active = true
     )
   );
@@ -184,14 +227,7 @@ CREATE POLICY donors_super_admin_all ON donors
 
 CREATE POLICY donors_org_admin_select ON donors
   FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1
-      FROM donations d
-      WHERE d.donor_id = donors.id
-        AND d.organisation_id = ANY (get_user_org_ids())
-    )
-  );
+  USING (donor_has_donation_in_orgs(id, get_user_org_ids()));
 
 CREATE POLICY donors_self ON donors
   FOR ALL
@@ -211,11 +247,7 @@ CREATE POLICY donations_org_admin_all ON donations
 
 CREATE POLICY donations_donor_own ON donations
   FOR SELECT
-  USING (
-    donor_id IN (
-      SELECT id FROM donors WHERE user_id = auth.uid()
-    )
-  );
+  USING (donor_id = ANY (get_my_donor_ids()));
 
 -- audit_logs
 CREATE POLICY audit_logs_super_admin_select ON audit_logs

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import {
   Building2,
@@ -6,6 +7,7 @@ import {
   Users,
   Wallet,
 } from 'lucide-react'
+import { DashboardDrillDown } from '@/components/dashboard/DashboardDrillDown'
 import {
   CartesianGrid,
   Line,
@@ -28,18 +30,109 @@ import {
   useOpportunities,
   useTopCampaigns,
 } from '@/hooks/useQueries'
-import { formatCurrency } from '@/lib/format'
+import { debugLog, debugWarn } from '@/lib/debug'
+import { formatCurrency, relationName } from '@/lib/format'
+import type { DashboardDrillMetric } from '@/types/entities'
+
+const DRILL_HINT = 'Click for breakdown'
 
 export function DashboardPage() {
-  const { isSuperAdmin, isOrgAdmin } = useAuth()
-  const { data: stats, isLoading } = useDashboardStats()
-  const { data: monthly } = useMonthlyDonations()
-  const { data: topCampaigns } = useTopCampaigns()
-  const { data: recentDonations } = useDonations({ per_page: 5 })
-  const { data: upcoming } = useOpportunities({ is_active: true, per_page: 5 })
+  const [drillMetric, setDrillMetric] = useState<DashboardDrillMetric | null>(
+    null,
+  )
+  const { isSuperAdmin, isOrgAdmin, role, session, isLoading: authLoading } =
+    useAuth()
+  const queriesEnabled = !authLoading && !!session && !!role
 
-  if (isLoading || !stats) {
+  const {
+    data: stats,
+    isLoading: statsLoading,
+    isError: statsFailed,
+    error: statsError,
+  } = useDashboardStats({ enabled: queriesEnabled })
+  const { data: monthly, error: monthlyError } = useMonthlyDonations({
+    enabled: queriesEnabled,
+  })
+  const { data: topCampaigns } = useTopCampaigns({ enabled: queriesEnabled })
+  const {
+    data: recentDonations,
+    error: donationsError,
+    isError: donationsFailed,
+  } = useDonations({ per_page: 8 }, { enabled: queriesEnabled })
+  const { data: upcoming } = useOpportunities(
+    { is_active: true, per_page: 5 },
+    { enabled: queriesEnabled },
+  )
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+  useEffect(() => {
+    debugLog('DashboardPage', 'render state', {
+      authLoading,
+      queriesEnabled,
+      statsLoading,
+      statsFailed,
+      stats: stats ?? null,
+      statsError: statsError?.message ?? null,
+      role,
+      email: session?.user?.email ?? null,
+      isSuperAdmin,
+      monthlyPoints: monthly?.length ?? 0,
+      monthlyError: monthlyError?.message ?? null,
+      recentCount: recentDonations?.data?.length ?? 0,
+      donationsError: donationsError?.message ?? null,
+      topCampaignsCount: topCampaigns?.length ?? 0,
+      hasSupabaseUrl: !!supabaseUrl,
+      hasSupabaseKey: !!supabaseKey,
+    })
+  }, [
+    authLoading,
+    queriesEnabled,
+    statsLoading,
+    statsFailed,
+    stats,
+    statsError,
+    role,
+    session,
+    isSuperAdmin,
+    monthly,
+    monthlyError,
+    recentDonations,
+    donationsError,
+    topCampaigns,
+    supabaseUrl,
+    supabaseKey,
+  ])
+
+  if (!supabaseUrl || !supabaseKey) {
+    debugWarn('DashboardPage', 'missing env vars')
+    return (
+      <p className="text-destructive">
+        Missing Supabase env vars. Set VITE_SUPABASE_URL and
+        VITE_SUPABASE_ANON_KEY (Vercel → Project Settings → Environment
+        Variables), then redeploy.
+      </p>
+    )
+  }
+
+  if (authLoading || statsLoading) {
     return <p className="text-muted-foreground">Loading dashboard…</p>
+  }
+
+  if (statsFailed || !stats) {
+    return (
+      <div className="space-y-2">
+        <p className="text-destructive">
+          Could not load dashboard: {statsError?.message ?? 'Unknown error'}
+        </p>
+        <p className="text-sm text-muted-foreground">
+          Signed in as {session?.user.email ?? 'unknown'} (role:{' '}
+          {role ?? 'not set'}). Run fix-rls-recursion.sql and
+          seed-donations-fix.sql in Supabase, then sign out and back in.
+        </p>
+      </div>
+    )
   }
 
   return (
@@ -61,14 +154,30 @@ export function DashboardPage() {
             title="Organisations"
             value={stats.organisations}
             icon={Building2}
+            description={DRILL_HINT}
+            onClick={() => setDrillMetric('organisations')}
           />
         )}
-        <StatCard title="Volunteers" value={stats.volunteers} icon={Users} />
-        <StatCard title="Donors" value={stats.donors} icon={Wallet} />
+        <StatCard
+          title="Volunteers"
+          value={stats.volunteers}
+          icon={Users}
+          description={DRILL_HINT}
+          onClick={() => setDrillMetric('volunteers')}
+        />
+        <StatCard
+          title="Donors"
+          value={stats.donors}
+          icon={Wallet}
+          description={DRILL_HINT}
+          onClick={() => setDrillMetric('donors')}
+        />
         <StatCard
           title="Donations this month"
           value={formatCurrency(stats.donationsThisMonth)}
           icon={Heart}
+          description={DRILL_HINT}
+          onClick={() => setDrillMetric('donations')}
         />
         {(isOrgAdmin || isSuperAdmin) && (
           <>
@@ -76,15 +185,24 @@ export function DashboardPage() {
               title="Open opportunities"
               value={stats.openOpportunities}
               icon={HandHeart}
+              description={DRILL_HINT}
+              onClick={() => setDrillMetric('opportunities')}
             />
             <StatCard
               title="Pending applications"
               value={stats.pendingApplications}
               icon={Users}
+              description={DRILL_HINT}
+              onClick={() => setDrillMetric('applications')}
             />
           </>
         )}
       </div>
+
+      <DashboardDrillDown
+        metric={drillMetric}
+        onClose={() => setDrillMetric(null)}
+      />
 
       {isSuperAdmin && (
         <div className="grid gap-6 lg:grid-cols-2">
@@ -93,6 +211,11 @@ export function DashboardPage() {
               <CardTitle className="text-base">Monthly donations</CardTitle>
             </CardHeader>
             <CardContent className="h-64">
+              {monthlyError && (
+                <p className="mb-2 text-sm text-destructive">
+                  Could not load donations: {monthlyError.message}
+                </p>
+              )}
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={monthly ?? []}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -116,16 +239,25 @@ export function DashboardPage() {
               <CardTitle className="text-base">Top campaigns</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {(topCampaigns ?? []).map((c) => (
+              {(topCampaigns ?? []).map((c) => {
+                const orgName = relationName(c.organisations)
+                return (
                 <div key={c.id}>
                   <div className="mb-1 flex justify-between text-sm">
-                    <Link
-                      to="/dashboard/campaigns/$id"
-                      params={{ id: c.id }}
-                      className="font-medium hover:underline"
-                    >
-                      {c.title}
-                    </Link>
+                    <div className="min-w-0">
+                      <Link
+                        to="/dashboard/campaigns/$id"
+                        params={{ id: c.id }}
+                        className="font-medium hover:underline"
+                      >
+                        {c.title}
+                      </Link>
+                      {orgName && (
+                        <p className="truncate text-xs text-muted-foreground">
+                          {orgName}
+                        </p>
+                      )}
+                    </div>
                     <span className="text-muted-foreground">{c.percent}%</span>
                   </div>
                   <div className="h-2 rounded-full bg-muted">
@@ -135,7 +267,7 @@ export function DashboardPage() {
                     />
                   </div>
                 </div>
-              ))}
+              )})}
               {(topCampaigns ?? []).length === 0 && (
                 <p className="text-sm text-muted-foreground">No campaigns yet.</p>
               )}
@@ -147,9 +279,33 @@ export function DashboardPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <div>
           <h3 className="mb-3 text-sm font-medium">Recent donations</h3>
+          {donationsFailed && (
+            <p className="mb-2 text-sm text-destructive">
+              Could not load donations: {donationsError?.message}
+            </p>
+          )}
+          {!donationsFailed &&
+            (recentDonations?.data ?? []).length === 0 &&
+            isSuperAdmin && (
+              <p className="mb-2 text-sm text-muted-foreground">
+                No donation rows in the database. Run{' '}
+                <code className="text-xs">supabase/seed-donations-fix.sql</code>{' '}
+                in the Supabase SQL Editor (after auth + org seed).
+              </p>
+            )}
           <DataTable
             data={recentDonations?.data ?? []}
             columns={[
+              {
+                key: 'campaign',
+                header: 'Campaign',
+                cell: (r) => r.campaigns?.title ?? '—',
+              },
+              {
+                key: 'org',
+                header: 'Organisation',
+                cell: (r) => relationName(r.organisations) ?? '—',
+              },
               {
                 key: 'amount',
                 header: 'Amount',

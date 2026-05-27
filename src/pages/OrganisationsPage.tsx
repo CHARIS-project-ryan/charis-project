@@ -29,7 +29,11 @@ export function OrganisationsPage() {
         isLoading={isLoading}
         data={data ?? []}
         onRowClick={(row) =>
-          navigate({ to: '/dashboard/organisations', search: { id: row.id } })
+          navigate({
+            to: '/dashboard/organisations/$id',
+            params: { id: row.id },
+            search: { tab: 'overview' },
+          })
         }
         columns={[
           { key: 'name', header: 'Name', cell: (r) => r.name },

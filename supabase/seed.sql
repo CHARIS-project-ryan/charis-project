@@ -81,7 +81,8 @@ ON CONFLICT (organisation_id, slug) DO NOTHING;
 
 INSERT INTO auth.users (
   instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
-  raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+  confirmation_token, email_change, email_change_token_new, recovery_token
 )
 VALUES
   (
@@ -93,7 +94,7 @@ VALUES
     now(),
     '{"provider":"email","providers":["email"]}',
     '{"first_name":"CHARIS","last_name":"Developer","role":"super_admin","pdpa_consent_given":true}',
-    now(), now()
+    now(), now(), '', '', '', ''
   ),
   (
     '00000000-0000-0000-0000-000000000000',
@@ -104,7 +105,7 @@ VALUES
     now(),
     '{"provider":"email","providers":["email"]}',
     '{"first_name":"Siti","last_name":"Lee","role":"volunteer","pdpa_consent_given":true}',
-    now(), now()
+    now(), now(), '', '', '', ''
   ),
   (
     '00000000-0000-0000-0000-000000000000',
@@ -115,7 +116,7 @@ VALUES
     now(),
     '{"provider":"email","providers":["email"]}',
     '{"first_name":"Raj","last_name":"Kumar","role":"volunteer","pdpa_consent_given":true}',
-    now(), now()
+    now(), now(), '', '', '', ''
   ),
   (
     '00000000-0000-0000-0000-000000000000',
@@ -126,7 +127,7 @@ VALUES
     now(),
     '{"provider":"email","providers":["email"]}',
     '{"first_name":"Mei","last_name":"Tan","role":"volunteer","pdpa_consent_given":true}',
-    now(), now()
+    now(), now(), '', '', '', ''
   ),
   (
     '00000000-0000-0000-0000-000000000000',
@@ -137,7 +138,7 @@ VALUES
     now(),
     '{"provider":"email","providers":["email"]}',
     '{"first_name":"David","last_name":"Wong","role":"donor","pdpa_consent_given":true}',
-    now(), now()
+    now(), now(), '', '', '', ''
   ),
   (
     '00000000-0000-0000-0000-000000000000',
@@ -148,7 +149,7 @@ VALUES
     now(),
     '{"provider":"email","providers":["email"]}',
     '{"first_name":"Priya","last_name":"Nair","role":"donor","pdpa_consent_given":true}',
-    now(), now()
+    now(), now(), '', '', '', ''
   ),
   (
     '00000000-0000-0000-0000-000000000000',
@@ -159,7 +160,7 @@ VALUES
     now(),
     '{"provider":"email","providers":["email"]}',
     '{"first_name":"Ahmad","last_name":"Ali","role":"donor","pdpa_consent_given":true}',
-    now(), now()
+    now(), now(), '', '', '', ''
   ),
   (
     '00000000-0000-0000-0000-000000000000',
@@ -170,7 +171,7 @@ VALUES
     now(),
     '{"provider":"email","providers":["email"]}',
     '{"first_name":"Sarah","last_name":"Chua","role":"org_admin","pdpa_consent_given":true}',
-    now(), now()
+    now(), now(), '', '', '', ''
   ),
   (
     '00000000-0000-0000-0000-000000000000',
@@ -181,7 +182,7 @@ VALUES
     now(),
     '{"provider":"email","providers":["email"]}',
     '{"first_name":"John","last_name":"Lim","role":"org_admin","pdpa_consent_given":true}',
-    now(), now()
+    now(), now(), '', '', '', ''
   ),
   (
     '00000000-0000-0000-0000-000000000000',
@@ -192,14 +193,54 @@ VALUES
     now(),
     '{"provider":"email","providers":["email"]}',
     '{"first_name":"Maria","last_name":"Fernandez","role":"org_admin","pdpa_consent_given":true}',
-    now(), now()
+    now(), now(), '', '', '', ''
   )
 ON CONFLICT (id) DO NOTHING;
 
--- Ensure admin role for primary login account
+-- auth.identities required for email/password login
+INSERT INTO auth.identities (
+  id, user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at
+)
+SELECT
+  u.id,
+  u.id,
+  u.id::text,
+  jsonb_build_object('sub', u.id::text, 'email', u.email),
+  'email',
+  now(),
+  now(),
+  now()
+FROM auth.users u
+WHERE u.id IN (
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1',
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2',
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa3',
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa4',
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa5',
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa6',
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa7',
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa8',
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa9',
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaa10'
+)
+ON CONFLICT DO NOTHING;
+
+-- Ensure app roles match auth metadata
 UPDATE users
 SET role = 'super_admin', first_name = 'CHARIS', last_name = 'Developer'
 WHERE email = 'developer@charis-singapore.org';
+
+UPDATE users
+SET role = 'org_admin', first_name = 'Sarah', last_name = 'Chua'
+WHERE email = 'sarah.chua@gebirah.sg';
+
+UPDATE users
+SET role = 'org_admin', first_name = 'John', last_name = 'Lim'
+WHERE email = 'john.lim@jrs.net.sg';
+
+UPDATE users
+SET role = 'org_admin', first_name = 'Maria', last_name = 'Fernandez'
+WHERE email = 'maria.fernandez@focolare.org';
 
 -- Org memberships
 INSERT INTO user_organisations (user_id, organisation_id, role_in_org, is_active)
@@ -223,6 +264,17 @@ JOIN (VALUES
 ) AS v(email, hours) ON u.email = v.email
 ON CONFLICT (user_id) DO NOTHING;
 
+-- Volunteer org membership (explicit join via user_organisations, role_in_org = member)
+INSERT INTO user_organisations (user_id, organisation_id, role_in_org, is_active)
+SELECT u.id, o.id, 'member', true
+FROM users u
+JOIN organisations o ON (
+  (u.email = 'siti.lee@email.com' AND o.slug IN ('gebirah', 'jrs-singapore')) OR
+  (u.email = 'raj.kumar@email.com' AND o.slug = 'jrs-singapore') OR
+  (u.email = 'mei.tan@email.com' AND o.slug = 'focolare')
+)
+ON CONFLICT (user_id, organisation_id) DO NOTHING;
+
 -- Donors
 INSERT INTO donors (user_id, total_donated, donation_count, is_active)
 SELECT id, v.total, v.count, true
@@ -234,27 +286,72 @@ JOIN (VALUES
 ) AS v(email, total, count) ON u.email = v.email
 ON CONFLICT (user_id) DO NOTHING;
 
--- Donations (sample records — no Stripe, manually seeded)
-INSERT INTO donations (donor_id, campaign_id, organisation_id, amount, currency, payment_method, payment_status, donated_at, tax_receipt_issued, tax_receipt_number)
-SELECT d.id, c.id, c.organisation_id, v.amount, 'SGD', v.method::payment_method, 'completed', v.donated_at::timestamptz, true, v.receipt
+-- Donations (org_slug + campaign_slug — reliable joins; requires donor users from auth seed)
+INSERT INTO donations (
+  donor_id, campaign_id, organisation_id, amount, currency,
+  payment_method, payment_status, donated_at, tax_receipt_issued, tax_receipt_number
+)
+SELECT d.id, c.id, o.id, v.amount, 'SGD', v.method::payment_method,
+  'completed', v.donated_at::timestamptz, true, v.receipt
 FROM (VALUES
-  ('david.wong@email.com', 'emergency-relief', 500, 'paynow', '2026-05-01', 'RCP-2026-00001'),
-  ('david.wong@email.com', 'education-support', 200, 'credit_card', '2026-05-10', 'RCP-2026-00002'),
-  ('priya.nair@email.com', 'refugee-legal-aid', 300, 'paynow', '2026-05-05', 'RCP-2026-00003'),
-  ('priya.nair@email.com', 'language-classes', 500, 'bank_transfer', '2026-05-15', 'RCP-2026-00004'),
-  ('ahmad.ali@email.com', 'housing-support', 5000, 'bank_transfer', '2026-04-20', 'RCP-2026-00005'),
-  ('ahmad.ali@email.com', 'youth-unity-camp', 1000, 'credit_card', '2026-05-12', 'RCP-2026-00006'),
-  ('ahmad.ali@email.com', 'family-support', 2000, 'cheque', '2026-03-08', 'RCP-2026-00007'),
-  ('david.wong@email.com', 'community-outreach', 150, 'paynow', '2026-04-28', 'RCP-2026-00008'),
-  ('ahmad.ali@email.com', 'emergency-relief', 3000, 'bank_transfer', '2026-02-14', 'RCP-2026-00009'),
-  ('priya.nair@email.com', 'interfaith-dialogue', 100, 'paynow', '2026-05-20', 'RCP-2026-00010')
-) AS v(donor_email, campaign_slug, amount, method, donated_at, receipt)
+  ('david.wong@email.com', 'gebirah', 'emergency-relief', 500, 'paynow', '2026-05-01', 'RCP-2026-00001'),
+  ('david.wong@email.com', 'gebirah', 'education-support', 200, 'credit_card', '2026-05-10', 'RCP-2026-00002'),
+  ('priya.nair@email.com', 'jrs-singapore', 'refugee-legal-aid', 300, 'paynow', '2026-05-05', 'RCP-2026-00003'),
+  ('priya.nair@email.com', 'jrs-singapore', 'language-classes', 500, 'bank_transfer', '2026-05-15', 'RCP-2026-00004'),
+  ('ahmad.ali@email.com', 'jrs-singapore', 'housing-support', 5000, 'bank_transfer', '2026-04-20', 'RCP-2026-00005'),
+  ('ahmad.ali@email.com', 'focolare', 'youth-unity-camp', 1000, 'credit_card', '2026-05-12', 'RCP-2026-00006'),
+  ('ahmad.ali@email.com', 'focolare', 'family-support', 2000, 'cheque', '2026-03-08', 'RCP-2026-00007'),
+  ('david.wong@email.com', 'gebirah', 'community-outreach', 150, 'paynow', '2026-04-28', 'RCP-2026-00008'),
+  ('ahmad.ali@email.com', 'gebirah', 'emergency-relief', 3000, 'bank_transfer', '2026-02-14', 'RCP-2026-00009'),
+  ('priya.nair@email.com', 'focolare', 'interfaith-dialogue', 100, 'paynow', '2026-05-20', 'RCP-2026-00010'),
+  ('david.wong@email.com', 'gebirah', 'emergency-relief', 250, 'paynow', '2026-05-22', 'RCP-2026-00011'),
+  ('david.wong@email.com', 'jrs-singapore', 'refugee-legal-aid', 400, 'credit_card', '2026-05-18', 'RCP-2026-00012'),
+  ('priya.nair@email.com', 'jrs-singapore', 'housing-support', 750, 'bank_transfer', '2026-05-24', 'RCP-2026-00013'),
+  ('priya.nair@email.com', 'focolare', 'youth-unity-camp', 200, 'paynow', '2026-05-08', 'RCP-2026-00014'),
+  ('ahmad.ali@email.com', 'gebirah', 'emergency-relief', 1200, 'bank_transfer', '2026-05-25', 'RCP-2026-00015'),
+  ('ahmad.ali@email.com', 'jrs-singapore', 'language-classes', 350, 'paynow', '2026-05-14', 'RCP-2026-00016'),
+  ('david.wong@email.com', 'focolare', 'family-support', 180, 'paynow', '2025-12-10', 'RCP-2025-00020'),
+  ('priya.nair@email.com', 'gebirah', 'education-support', 220, 'credit_card', '2025-11-05', 'RCP-2025-00021'),
+  ('ahmad.ali@email.com', 'jrs-singapore', 'housing-support', 8000, 'bank_transfer', '2025-10-15', 'RCP-2025-00022'),
+  ('ahmad.ali@email.com', 'jrs-singapore', 'refugee-legal-aid', 2500, 'cheque', '2025-09-20', 'RCP-2025-00023'),
+  ('david.wong@email.com', 'gebirah', 'community-outreach', 90, 'paynow', '2025-08-12', 'RCP-2025-00024'),
+  ('priya.nair@email.com', 'focolare', 'interfaith-dialogue', 150, 'paynow', '2025-07-08', 'RCP-2025-00025'),
+  ('ahmad.ali@email.com', 'focolare', 'youth-unity-camp', 600, 'credit_card', '2025-06-18', 'RCP-2025-00026'),
+  ('david.wong@email.com', 'gebirah', 'education-support', 120, 'paynow', '2026-04-05', 'RCP-2026-00027'),
+  ('priya.nair@email.com', 'jrs-singapore', 'refugee-legal-aid', 450, 'bank_transfer', '2026-03-22', 'RCP-2026-00028'),
+  ('ahmad.ali@email.com', 'focolare', 'family-support', 1500, 'bank_transfer', '2026-02-28', 'RCP-2026-00029'),
+  ('david.wong@email.com', 'gebirah', 'emergency-relief', 300, 'paynow', '2026-01-15', 'RCP-2026-00030')
+) AS v(donor_email, org_slug, campaign_slug, amount, method, donated_at, receipt)
 JOIN users u ON u.email = v.donor_email
 JOIN donors d ON d.user_id = u.id
-JOIN campaigns c ON c.slug = v.campaign_slug
+JOIN organisations o ON o.slug = v.org_slug
+JOIN campaigns c ON c.organisation_id = o.id AND c.slug = v.campaign_slug
 WHERE NOT EXISTS (
   SELECT 1 FROM donations existing WHERE existing.tax_receipt_number = v.receipt
 );
+
+-- Sync donor totals from donations
+UPDATE donors d
+SET
+  total_donated = sub.total,
+  donation_count = sub.cnt
+FROM (
+  SELECT donor_id, SUM(amount) AS total, COUNT(*)::int AS cnt
+  FROM donations
+  WHERE payment_status = 'completed'
+  GROUP BY donor_id
+) sub
+WHERE d.id = sub.donor_id;
+
+UPDATE campaigns c
+SET current_amount = COALESCE(sub.total, 0)
+FROM (
+  SELECT campaign_id, SUM(amount) AS total
+  FROM donations
+  WHERE payment_status = 'completed' AND campaign_id IS NOT NULL
+  GROUP BY campaign_id
+) sub
+WHERE c.id = sub.campaign_id;
 
 -- Volunteer assignments
 INSERT INTO volunteer_assignments (volunteer_id, opportunity_id, organisation_id, status, hours_served)

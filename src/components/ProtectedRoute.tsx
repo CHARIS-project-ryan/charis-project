@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { supabase } from '@/lib/supabase'
+import { debugLog, debugWarn } from '@/lib/debug'
+import { useAuthStore } from '@/store/authStore'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
@@ -8,40 +9,27 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const navigate = useNavigate()
-  const [ready, setReady] = useState(false)
+  const session = useAuthStore((s) => s.session)
+  const isLoading = useAuthStore((s) => s.isLoading)
 
   useEffect(() => {
-    let mounted = true
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!mounted) return
-      if (!session) {
-        navigate({ to: '/login' })
-        return
-      }
-      setReady(true)
-    })
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) {
-        navigate({ to: '/login' })
-      }
-    })
-
-    return () => {
-      mounted = false
-      subscription.unsubscribe()
+    debugLog('ProtectedRoute', 'state', { isLoading, hasSession: !!session })
+    if (!isLoading && !session) {
+      debugWarn('ProtectedRoute', 'no session — redirecting to /login')
+      navigate({ to: '/login' })
     }
-  }, [navigate])
+  }, [isLoading, session, navigate])
 
-  if (!ready) {
+  if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center text-muted-foreground">
         Loading…
       </div>
     )
+  }
+
+  if (!session) {
+    return null
   }
 
   return <>{children}</>

@@ -1,4 +1,5 @@
 import type { Session, User as AuthUser } from '@supabase/supabase-js'
+import { debugError, debugLog } from '@/lib/debug'
 import { supabase } from '@/lib/supabase'
 import type { UserRole } from '@/types/supabase'
 
@@ -13,7 +14,14 @@ export interface SignUpData {
 }
 
 export async function signIn(email: string, password: string) {
-  return supabase.auth.signInWithPassword({ email, password })
+  debugLog('auth', 'signIn attempt', { email })
+  const result = await supabase.auth.signInWithPassword({ email, password })
+  if (result.error) {
+    debugError('auth', 'signIn failed', result.error)
+  } else {
+    debugLog('auth', 'signIn ok', { userId: result.data.user?.id })
+  }
+  return result
 }
 
 export async function signUp(data: SignUpData) {
@@ -37,7 +45,12 @@ export async function signOut() {
 }
 
 export async function getSession(): Promise<Session | null> {
-  const { data } = await supabase.auth.getSession()
+  const { data, error } = await supabase.auth.getSession()
+  if (error) debugError('auth', 'getSession error', error)
+  debugLog('auth', 'getSession', {
+    hasSession: !!data.session,
+    email: data.session?.user?.email,
+  })
   return data.session
 }
 

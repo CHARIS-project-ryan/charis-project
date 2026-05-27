@@ -4,7 +4,12 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { useDonations } from '@/hooks/useQueries'
-import { formatCurrency, formatName } from '@/lib/format'
+import {
+  donorUserFromDonation,
+  formatCurrency,
+  formatName,
+  relationName,
+} from '@/lib/format'
 
 export function DonationsPage() {
   const { data, isLoading } = useDonations()
@@ -33,12 +38,14 @@ export function DonationsPage() {
             key: 'donor',
             header: 'Donor',
             cell: (r) =>
-              r.is_anonymous ? 'Anonymous' : formatName(r.donors?.users),
+              r.is_anonymous
+                ? 'Anonymous'
+                : formatName(donorUserFromDonation(r)),
           },
           {
             key: 'org',
             header: 'Organisation',
-            cell: (r) => r.organisations?.name ?? '—',
+            cell: (r) => relationName(r.organisations) ?? '—',
           },
           {
             key: 'campaign',

@@ -7,16 +7,23 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { SearchInput } from '@/components/ui/SearchInput'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useAuth } from '@/hooks/useAuth'
 import {
   useVolunteer,
   useVolunteerAssignments,
   useVolunteers,
 } from '@/hooks/useQueries'
-import { formatName } from '@/lib/format'
+import { OrgNameList } from '@/components/ui/OrgNameList'
+import { formatName, relationName } from '@/lib/format'
 
 export function VolunteersPage() {
   const [search, setSearch] = useState('')
-  const { data, isLoading } = useVolunteers({ search: search || undefined })
+  const { isSuperAdmin, isOrgAdmin, orgIds } = useAuth()
+  const { data, isLoading } = useVolunteers({
+    search: search || undefined,
+    organisation_ids:
+      isOrgAdmin && !isSuperAdmin && orgIds.length > 0 ? orgIds : undefined,
+  })
 
   if (!isLoading && (data?.data.length ?? 0) === 0 && !search) {
     return (
@@ -32,7 +39,11 @@ export function VolunteersPage() {
     <div>
       <PageHeader
         title="Volunteers"
-        description="Volunteer directory"
+        description={
+          isOrgAdmin && !isSuperAdmin
+            ? 'Volunteers who have joined your organisation(s)'
+            : 'All volunteers with org membership'
+        }
         actions={<SearchInput placeholder="Search volunteers…" onChange={setSearch} />}
       />
       <DataTable
@@ -51,6 +62,11 @@ export function VolunteersPage() {
                 {formatName(r.users)}
               </Link>
             ),
+          },
+          {
+            key: 'orgs',
+            header: 'Organisations',
+            cell: (r) => <OrgNameList names={r.organisation_names} />,
           },
           {
             key: 'email',
@@ -101,6 +117,10 @@ export function VolunteerDetailPage() {
             <span className="text-muted-foreground">Total hours: </span>
             {Number(volunteer.total_hours_served).toFixed(1)}
           </p>
+          <p className="sm:col-span-2">
+            <span className="text-muted-foreground">Member of: </span>
+            <OrgNameList names={volunteer.organisation_names} emptyLabel="None" />
+          </p>
         </CardContent>
       </Card>
       <div>
@@ -110,10 +130,22 @@ export function VolunteerDetailPage() {
             id: string
             status: string
             applied_at: string
+            organisations?: { name: string } | { name: string }[]
             volunteer_opportunities?: { title: string; start_date: string | null }
           }>}
           emptyMessage="No assignments yet."
           columns={[
+            {
+              key: 'org',
+              header: 'Organisation',
+              cell: (r) =>
+                relationName(
+                  r.organisations as
+                    | { name: string }
+                    | { name: string }[]
+                    | null,
+                ) ?? '—',
+            },
             {
               key: 'title',
               header: 'Opportunity',

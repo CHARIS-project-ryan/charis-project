@@ -13,7 +13,7 @@ import {
   useOpportunityRoster,
   useUpdateAssignmentStatus,
 } from '@/hooks/useQueries'
-import { formatName } from '@/lib/format'
+import { formatName, relationName } from '@/lib/format'
 
 export function OpportunitiesPage() {
   const { data, isLoading } = useOpportunities()
@@ -54,7 +54,7 @@ export function OpportunitiesPage() {
           {
             key: 'org',
             header: 'Organisation',
-            cell: (r) => r.organisations?.name ?? '—',
+            cell: (r) => relationName(r.organisations) ?? '—',
           },
           {
             key: 'location',
@@ -103,7 +103,7 @@ export function OpportunityDetailPage() {
         <CardContent className="grid gap-2 text-sm sm:grid-cols-2">
           <p>
             <span className="text-muted-foreground">Organisation: </span>
-            {opportunity.organisations?.name}
+            {relationName(opportunity.organisations) ?? '—'}
           </p>
           <p>
             <span className="text-muted-foreground">Location: </span>
