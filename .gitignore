@@ -1,4 +1,8 @@
-.DS_Store
+node_modules
+dist
 .env
 .env.local
+supabase/.temp
+secrets/
+.DS_Store
 ~$*
