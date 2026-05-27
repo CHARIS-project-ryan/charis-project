@@ -2,6 +2,8 @@
 
 Volunteer & Donor Management System for CHARIS Singapore.
 
+**Product documentation:** [docs/PRODUCT.md](docs/PRODUCT.md) — features, roles, data model, and roadmap (for stakeholders and future product specs).
+
 ## Demo logins
 
 Password for all accounts: **`CharisDemo2026!`**
